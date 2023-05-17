@@ -140,6 +140,16 @@ def get_trainer(checkpoint, name="best", device=None):
     assert isinstance(trainer, torch_em.trainer.DefaultTrainer)
     return trainer
 
+def get_save_dict_from_checkpoint(checkpoint, name="best", device=None):
+    """Load trainer from a checkpoint.
+    """
+    # try to load from file
+    assert isinstance(checkpoint, str), "needs to be a path to a checkpoint"
+    assert os.path.exists(checkpoint), checkpoint
+    save_path = os.path.join(checkpoint, f"{name}.pt")
+    save_dict = torch_em.trainer.DefaultTrainer._get_saved_dict(save_path,
+                                                                  device=device)
+    return save_dict
 
 def get_normalizer(trainer):
     dataset = trainer.train_loader.dataset
