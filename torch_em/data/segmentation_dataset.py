@@ -9,13 +9,15 @@ from ..util import ensure_spatial_array, ensure_tensor_with_channels
 
 
 class SegmentationDataset(torch.utils.data.Dataset):
-    """
-    """
+    """ """
+
     max_sampling_attempts = 500
 
     @staticmethod
     def compute_len(shape, patch_shape):
-        n_samples = int(np.prod([float(sh / csh) for sh, csh in zip(shape, patch_shape)]))
+        n_samples = int(
+            np.prod([float(sh / csh) for sh, csh in zip(shape, patch_shape)])
+        )
         return n_samples
 
     def __init__(
@@ -52,20 +54,36 @@ class SegmentationDataset(torch.utils.data.Dataset):
         if roi is not None:
             if isinstance(roi, slice):
                 roi = (roi,)
-            self.raw = RoiWrapper(self.raw, (slice(None),) + roi) if self._with_channels else RoiWrapper(self.raw, roi)
-            self.labels = RoiWrapper(self.labels, (slice(None),) + roi) if self._with_label_channels else\
-                RoiWrapper(self.labels, roi)
+            self.raw = (
+                RoiWrapper(self.raw, (slice(None),) + roi)
+                if self._with_channels
+                else RoiWrapper(self.raw, roi)
+            )
+            self.labels = (
+                RoiWrapper(self.labels, (slice(None),) + roi)
+                if self._with_label_channels
+                else RoiWrapper(self.labels, roi)
+            )
 
         shape_raw = self.raw.shape[1:] if self._with_channels else self.raw.shape
-        shape_label = self.labels.shape[1:] if self._with_label_channels else self.labels.shape
+        shape_label = (
+            self.labels.shape[1:] if self._with_label_channels else self.labels.shape
+        )
         assert shape_raw == shape_label, f"{shape_raw}, {shape_label}"
 
         self.shape = shape_raw
         self.roi = roi
 
         self._ndim = len(shape_raw) if ndim is None else ndim
-        assert self._ndim in (2, 3, 4), f"Invalid data dimensions: {self._ndim}. Only 2d, 3d or 4d data is supported"
-        assert len(patch_shape) in (self._ndim, self._ndim + 1), f"{patch_shape}, {self._ndim}"
+        assert self._ndim in (
+            2,
+            3,
+            4,
+        ), f"Invalid data dimensions: {self._ndim}. Only 2d, 3d or 4d data is supported"
+        assert len(patch_shape) in (
+            self._ndim,
+            self._ndim + 1,
+        ), f"{patch_shape}, {self._ndim}"
         self.patch_shape = patch_shape
 
         self.raw_transform = raw_transform
@@ -77,7 +95,11 @@ class SegmentationDataset(torch.utils.data.Dataset):
         self.dtype = dtype
         self.label_dtype = label_dtype
 
-        self._len = self.compute_len(self.shape, self.patch_shape) if n_samples is None else n_samples
+        self._len = (
+            self.compute_len(self.shape, self.patch_shape)
+            if n_samples is None
+            else n_samples
+        )
 
         self.sample_shape = patch_shape
         self.trafo_halo = None
@@ -104,11 +126,15 @@ class SegmentationDataset(torch.utils.data.Dataset):
             np.random.randint(0, sh - psh) if sh - psh > 0 else 0
             for sh, psh in zip(self.shape, self.sample_shape)
         ]
-        return tuple(slice(start, start + psh) for start, psh in zip(bb_start, self.sample_shape))
+        return tuple(
+            slice(start, start + psh) for start, psh in zip(bb_start, self.sample_shape)
+        )
 
     def _get_sample(self, index):
         if self.raw is None or self.labels is None:
-            raise RuntimeError("SegmentationDataset has not been properly deserialized.")
+            raise RuntimeError(
+                "SegmentationDataset has not been properly deserialized."
+            )
         bb = self._sample_bounding_box()
         bb_raw = (slice(None),) + bb if self._with_channels else bb
         bb_labels = (slice(None),) + bb if self._with_label_channels else bb
@@ -123,7 +149,9 @@ class SegmentationDataset(torch.utils.data.Dataset):
                 raw, labels = self.raw[bb_raw], self.labels[bb_labels]
                 sample_id += 1
                 if sample_id > self.max_sampling_attempts:
-                    raise RuntimeError(f"Could not sample a valid batch in {self.max_sampling_attempts} attempts")
+                    raise RuntimeError(
+                        f"Could not sample a valid batch in {self.max_sampling_attempts} attempts"
+                    )
 
         # squeeze the singleton spatial axis if we have a spatial shape that is larger by one than self._ndim
         if len(self.patch_shape) == self._ndim + 1:
@@ -160,7 +188,9 @@ class SegmentationDataset(torch.utils.data.Dataset):
             labels = self.label_transform2(labels)
 
         raw = ensure_tensor_with_channels(raw, ndim=self._ndim, dtype=self.dtype)
-        labels = ensure_tensor_with_channels(labels, ndim=self._ndim, dtype=self.label_dtype)
+        labels = ensure_tensor_with_channels(
+            labels, ndim=self._ndim, dtype=self.label_dtype
+        )
         return raw, labels
 
     # need to overwrite pickle to support h5py
@@ -177,7 +207,11 @@ class SegmentationDataset(torch.utils.data.Dataset):
         try:
             raw = open_file(raw_path, mode="r")[raw_key]
             if roi is not None:
-                raw = RoiWrapper(raw, (slice(None),) + roi) if state["_with_channels"] else RoiWrapper(raw, roi)
+                raw = (
+                    RoiWrapper(raw, (slice(None),) + roi)
+                    if state["_with_channels"]
+                    else RoiWrapper(raw, roi)
+                )
             state["raw"] = raw
         except Exception:
             msg = f"SegmentationDataset could not be deserialized because of missing {raw_path}, {raw_key}.\n"
@@ -189,8 +223,11 @@ class SegmentationDataset(torch.utils.data.Dataset):
         try:
             labels = open_file(label_path, mode="r")[label_key]
             if roi is not None:
-                labels = RoiWrapper(labels, (slice(None),) + roi) if state["_with_label_channels"] else\
-                    RoiWrapper(labels, roi)
+                labels = (
+                    RoiWrapper(labels, (slice(None),) + roi)
+                    if state["_with_label_channels"]
+                    else RoiWrapper(labels, roi)
+                )
             state["labels"] = labels
         except Exception:
             msg = f"SegmentationDataset could not be deserialized because of missing {label_path}, {label_key}.\n"
