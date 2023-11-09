@@ -35,8 +35,7 @@ class RandomElasticDeformationStacked(kornia.augmentation.AugmentationBase3D):
         assert len(batch_shape) == 5
         shape = batch_shape[3:]
         control_shape = tuple(
-            sh // spacing
-            for sh, spacing in zip(shape, self.control_point_spacing)
+            sh // spacing for sh, spacing in zip(shape, self.control_point_spacing)
         )
         deformation_fields = [
             np.random.uniform(-1, 1, control_shape),
@@ -45,9 +44,7 @@ class RandomElasticDeformationStacked(kornia.augmentation.AugmentationBase3D):
         deformation_fields = [
             resize(df, shape, order=3)[None] for df in deformation_fields
         ]
-        noise = np.concatenate(deformation_fields, axis=0)[None].astype(
-            "float32"
-        )
+        noise = np.concatenate(deformation_fields, axis=0)[None].astype("float32")
         noise = torch.from_numpy(noise)
         return {"noise": noise}
 
@@ -58,11 +55,7 @@ class RandomElasticDeformationStacked(kornia.augmentation.AugmentationBase3D):
             self._params = params
 
         noise = params["noise"]
-        mode = (
-            "bilinear"
-            if (self.flags["interpolation"] == 1).all()
-            else "nearest"
-        )
+        mode = "bilinear" if (self.flags["interpolation"] == 1).all() else "nearest"
         noise_ch = noise.expand(input.shape[1], -1, -1, -1)
         input_transformed = []
         for i, x in enumerate(torch.unbind(input, dim=0)):
@@ -106,8 +99,7 @@ class RandomElasticDeformation(kornia.augmentation.AugmentationBase2D):
         assert len(batch_shape) == 4, f"{len(batch_shape)}"
         shape = batch_shape[2:]
         control_shape = tuple(
-            sh // spacing
-            for sh, spacing in zip(shape, self.control_point_spacing)
+            sh // spacing for sh, spacing in zip(shape, self.control_point_spacing)
         )
         deformation_fields = [
             np.random.uniform(-1, 1, control_shape),
@@ -116,9 +108,7 @@ class RandomElasticDeformation(kornia.augmentation.AugmentationBase2D):
         deformation_fields = [
             resize(df, shape, order=3)[None] for df in deformation_fields
         ]
-        noise = np.concatenate(deformation_fields, axis=0)[None].astype(
-            "float32"
-        )
+        noise = np.concatenate(deformation_fields, axis=0)[None].astype("float32")
         noise = torch.from_numpy(noise)
         return {"noise": noise}
 
@@ -167,9 +157,7 @@ class KorniaAugmentationPipeline(torch.nn.Module):
         else:
             return tensor.dtype in self.interpolatable_numpy_types
 
-    def transform_tensor(
-        self, augmentation, tensor, interpolatable, params=None
-    ):
+    def transform_tensor(self, augmentation, tensor, interpolatable, params=None):
         interpolating = "interpolation" in getattr(augmentation, "flags", [])
         if interpolating:
             resampler = kornia.constants.Resample.get(
@@ -183,10 +171,7 @@ class KorniaAugmentationPipeline(torch.nn.Module):
         interpolatable = [self.is_interpolatable(tensor) for tensor in tensors]
         tensors = [ensure_tensor(tensor, self.dtype) for tensor in tensors]
         for aug in self.augmentations:
-
-            t0, params = self.transform_tensor(
-                aug, tensors[0], interpolatable[0]
-            )
+            t0, params = self.transform_tensor(aug, tensors[0], interpolatable[0])
             transformed_tensors = [t0]
             for tensor, interpolate in zip(tensors[1:], interpolatable[1:]):
                 tensor, _ = self.transform_tensor(
@@ -244,6 +229,15 @@ def create_augmentation(trafo):
     return globals()[trafo](**AUGMENTATIONS[trafo])
 
 
+def create_augmentation_with_params(trafo):
+    assert (
+        trafo[0] in dir(kornia.augmentation) or trafo[0] in globals().keys()
+    ), f"Transformation {trafo} not defined"
+    if trafo[0] in dir(kornia.augmentation):
+        return getattr(kornia.augmentation, trafo[0])(**trafo[1])
+    return globals()[trafo[0]](**trafo[1])
+
+
 def get_augmentations(ndim=2, transforms=None, dtype=torch.float32):
     if transforms is None:
         assert ndim in (
@@ -257,7 +251,8 @@ def get_augmentations(ndim=2, transforms=None, dtype=torch.float32):
             transforms = DEFAULT_3D_AUGMENTATIONS
         else:
             transforms = DEFAULT_ANISOTROPIC_AUGMENTATIONS
-    transforms = [create_augmentation(trafo) for trafo in transforms]
+    # transforms = [create_augmentation(trafo) for trafo in transforms]
+    transforms = [create_augmentation_with_params(trafo) for trafo in transforms]
 
     assert all(
         isinstance(trafo, kornia.augmentation.base._AugmentationBase)
