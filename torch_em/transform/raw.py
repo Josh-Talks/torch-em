@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torchvision import transforms
+from ..util import ensure_tensor
 
 
 #
@@ -15,7 +16,7 @@ def standardize(raw, mean=None, std=None, axis=None, eps=1e-7):
     raw -= mean
 
     std = raw.std(axis=axis, keepdims=True) if std is None else std
-    raw /= (std + eps)
+    raw /= std + eps
 
     return raw
 
@@ -48,7 +49,7 @@ def _normalize_torch(tensor, minval=None, maxval=None, axis=None, eps=1e-7):
         tensor -= minval
 
         maxval = tensor.max(dim=axis, keepdim=True).values if maxval is None else maxval
-        tensor /= (maxval + eps)
+        tensor /= maxval + eps
 
         return tensor
 
@@ -57,7 +58,7 @@ def _normalize_torch(tensor, minval=None, maxval=None, axis=None, eps=1e-7):
     tensor -= minval
 
     maxval = tensor.max() if maxval is None else maxval
-    tensor /= (maxval + eps)
+    tensor /= maxval + eps
 
     return tensor
 
@@ -72,7 +73,7 @@ def normalize(raw, minval=None, maxval=None, axis=None, eps=1e-7):
     raw -= minval
 
     maxval = raw.max(axis=axis, keepdims=True) if maxval is None else maxval
-    raw /= (maxval + eps)
+    raw /= maxval + eps
 
     return raw
 
@@ -88,12 +89,14 @@ def normalize_percentile(raw, lower=1.0, upper=99.0, axis=None, eps=1e-7):
 # intensity augmentations / noise augmentations
 #
 
+
 # modified from https://github.com/kreshuklab/spoco/blob/main/spoco/transforms.py
-class RandomContrast():
+class RandomContrast:
     """
     Adjust contrast by scaling image to `mean + alpha * (image - mean)`.
     """
-    def __init__(self, alpha=(0.5, 2), mean=0.5, clip_kwargs={'a_min': 0, 'a_max': 1}):
+
+    def __init__(self, alpha=(0.5, 2), mean=0.5, clip_kwargs={"a_min": 0, "a_max": 1}):
         self.alpha = alpha
         self.mean = mean
         self.clip_kwargs = clip_kwargs
@@ -106,11 +109,12 @@ class RandomContrast():
         return result
 
 
-class AdditiveGaussianNoise():
+class AdditiveGaussianNoise:
     """
     Add random Gaussian noise to image.
     """
-    def __init__(self, scale=(0.0, 0.3), clip_kwargs={'a_min': 0, 'a_max': 1}):
+
+    def __init__(self, scale=(0.0, 0.3), clip_kwargs={"a_min": 0, "a_max": 1}):
         self.scale = scale
         self.clip_kwargs = clip_kwargs
 
@@ -122,13 +126,14 @@ class AdditiveGaussianNoise():
         return img + gaussian_noise
 
 
-class AdditivePoissonNoise():
+class AdditivePoissonNoise:
     """
     Add random Poisson noise to image.
     """
+
     # TODO: not sure if Poisson noise like this does make sense
     # for data that is already normalized
-    def __init__(self, lam=(0.0, 0.1), clip_kwargs={'a_min': 0, 'a_max': 1}):
+    def __init__(self, lam=(0.0, 0.1), clip_kwargs={"a_min": 0, "a_max": 1}):
         self.lam = lam
         self.clip_kwargs = clip_kwargs
 
@@ -140,11 +145,12 @@ class AdditivePoissonNoise():
         return img + poisson_noise
 
 
-class PoissonNoise():
+class PoissonNoise:
     """
     Add random data-dependent Poisson noise to image.
     """
-    def __init__(self, multiplier=(5.0, 10.0), clip_kwargs={'a_min': 0, 'a_max': 1}):
+
+    def __init__(self, multiplier=(5.0, 10.0), clip_kwargs={"a_min": 0, "a_max": 1}):
         self.multiplier = multiplier
         self.clip_kwargs = clip_kwargs
 
@@ -160,17 +166,20 @@ class PoissonNoise():
         return poisson_noise
 
 
-class GaussianBlur():
+class GaussianBlur:
     """
     Blur the image.
     """
+
     def __init__(self, kernel_size=(2, 12), sigma=(0, 2.5)):
         self.kernel_size = kernel_size
         self.sigma = sigma
 
     def __call__(self, img):
         # sample kernel_size and make sure it is odd
-        kernel_size = 2 * (np.random.randint(self.kernel_size[0], self.kernel_size[1]) // 2) + 1
+        kernel_size = (
+            2 * (np.random.randint(self.kernel_size[0], self.kernel_size[1]) // 2) + 1
+        )
         # switch boundaries to make sure 0 is excluded from sampling
         sigma = np.random.uniform(self.sigma[1], self.sigma[0])
         return transforms.GaussianBlur(kernel_size, sigma=sigma)(img)
@@ -180,6 +189,7 @@ class GaussianBlur():
 # default transformation:
 # apply intensity augmentations and normalize
 #
+
 
 class RawTransform:
     def __init__(self, normalizer, augmentation1=None, augmentation2=None):
@@ -197,9 +207,9 @@ class RawTransform:
 
 
 def get_raw_transform(normalizer=standardize, augmentation1=None, augmentation2=None):
-    return RawTransform(normalizer,
-                        augmentation1=augmentation1,
-                        augmentation2=augmentation2)
+    return RawTransform(
+        normalizer, augmentation1=augmentation1, augmentation2=augmentation2
+    )
 
 
 # The default values are made for an image with pixel values in
@@ -207,17 +217,49 @@ def get_raw_transform(normalizer=standardize, augmentation1=None, augmentation2=
 # initial normalizations step.
 def get_default_mean_teacher_augmentations(p=0.3):
     norm = normalize
-    aug1 = transforms.Compose([
-        normalize,
-        transforms.RandomApply([GaussianBlur()], p=p),
-        transforms.RandomApply([PoissonNoise()], p=p/2),
-        transforms.RandomApply([AdditiveGaussianNoise()], p=p/2),
-    ])
+    aug1 = transforms.Compose(
+        [
+            normalize,
+            transforms.RandomApply([GaussianBlur()], p=p),
+            transforms.RandomApply([PoissonNoise()], p=p / 2),
+            transforms.RandomApply([AdditiveGaussianNoise()], p=p / 2),
+        ]
+    )
     aug2 = transforms.RandomApply(
         [RandomContrast(clip_kwargs={"a_min": 0, "a_max": 1})], p=p
     )
-    return get_raw_transform(
-        normalizer=norm,
-        augmentation1=aug1,
-        augmentation2=aug2
+    return get_raw_transform(normalizer=norm, augmentation1=aug1, augmentation2=aug2)
+
+
+def apply_augmentations_test(raw, p=0.3):
+    tensors_raw = ensure_tensor(raw)
+    aug = transforms.Compose(
+        [
+            normalize,
+            transforms.RandomApply([GaussianBlur()], p=p),
+            transforms.RandomApply([RandomContrast()], p=p),
+            transforms.RandomApply([AdditiveGaussianNoise()], p=p / 2),
+        ]
     )
+    aug_raw = aug(tensors_raw)
+    return aug_raw
+
+
+def get_raw_augmentations(transform_inputs, p=0.3):
+    transform_available = {
+        "GaussianBlur": GaussianBlur(),
+        "RandomContrast": RandomContrast(),
+        "AdditiveGaussianNoise": AdditiveGaussianNoise(),
+        "AdditivePoissonNoise": AdditivePoissonNoise(),
+        "PoissonNoise": PoissonNoise(),
+    }
+    group_of_transforms = [normalize]
+    for t in transform_inputs:
+        assert t in transform_available.keys(), f"{t} not available"
+        group_of_transforms.append(
+            transforms.RandomApply([transform_available[t]], p=p)
+        )
+
+    # compose aug using transforms.Compose from list of strings inputed as raw_tranforms
+    aug = transforms.Compose(group_of_transforms)
+    return aug
