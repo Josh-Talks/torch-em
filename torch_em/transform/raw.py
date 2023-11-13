@@ -90,6 +90,45 @@ def normalize_percentile(raw, lower=1.0, upper=99.0, axis=None, eps=1e-7):
 #
 
 
+class RandomGamma:
+    """
+    Adjust contrast by non-liner transformation raising image value to power gamma.
+    """
+
+    def __init__(self, gamma=(0.5, 2), gain=1.0, clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.gamma = gamma
+        self.gain = gain
+        self.clip_kwargs = clip_kwargs
+
+    def __call__(self, img):
+        gamma = np.random.uniform(self.gamma[0], self.gamma[1])
+        if gamma < 0.0:
+            raise ValueError(f"Gamma must be non-negative. Got {gamma}")
+        if self.gain < 0.0:
+            raise ValueError(f"Gain must be non-negative. Got {gain}")
+        result = self.gain * (img**gamma)
+        if self.clip_kwargs:
+            return np.clip(result, **self.clip_kwargs)
+        return result
+
+
+class RandomBrightness:
+    """
+    Adjust brightness by adding a random value to image.
+    """
+
+    def __init__(self, shift=(0, 1.0), clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.shift = shift
+        self.clip_kwargs = clip_kwargs
+
+    def __call__(self, img):
+        shift = np.random.uniform(self.shift[0], self.shift[1])
+        result = img + shift
+        if self.clip_kwargs:
+            return np.clip(result, **self.clip_kwargs)
+        return result
+
+
 # modified from https://github.com/kreshuklab/spoco/blob/main/spoco/transforms.py
 class RandomContrast:
     """
@@ -236,28 +275,28 @@ def apply_augmentations_test(raw, p=0.3):
     aug = transforms.Compose(
         [
             normalize,
-            transforms.RandomApply([GaussianBlur()], p=p),
-            transforms.RandomApply([RandomContrast()], p=p),
-            transforms.RandomApply([AdditiveGaussianNoise()], p=p / 2),
+            transforms.RandomApply([RandomGamma(gamma=(3, 4))], p=p),
         ]
     )
     aug_raw = aug(tensors_raw)
     return aug_raw
 
 
-def get_raw_augmentations(transform_inputs, p=0.3):
+def get_raw_augmentations(transform_inputs):
     transform_available = {
-        "GaussianBlur": GaussianBlur(),
-        "RandomContrast": RandomContrast(),
-        "AdditiveGaussianNoise": AdditiveGaussianNoise(),
-        "AdditivePoissonNoise": AdditivePoissonNoise(),
-        "PoissonNoise": PoissonNoise(),
+        "GaussianBlur": GaussianBlur,
+        "RandomContrast": RandomContrast,
+        "AdditiveGaussianNoise": AdditiveGaussianNoise,
+        "AdditivePoissonNoise": AdditivePoissonNoise,
+        "PoissonNoise": PoissonNoise,
+        "RandomGamma": RandomGamma,
+        "RandomBrightness": RandomBrightness,
     }
     group_of_transforms = [normalize]
-    for t in transform_inputs:
+    for t, p, param in transform_inputs:
         assert t in transform_available.keys(), f"{t} not available"
         group_of_transforms.append(
-            transforms.RandomApply([transform_available[t]], p=p)
+            transforms.RandomApply([transform_available[t](**param)], p=p["p"])
         )
 
     # compose aug using transforms.Compose from list of strings inputed as raw_tranforms
