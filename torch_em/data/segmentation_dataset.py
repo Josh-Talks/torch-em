@@ -4,8 +4,7 @@ import torch
 import numpy as np
 from elf.io import open_file
 from elf.wrapper import RoiWrapper
-
-from ..util import ensure_spatial_array, ensure_tensor_with_channels
+from ..util import ensure_spatial_array, ensure_tensor_with_channels, ensure_tensor
 
 
 class SegmentationDataset(torch.utils.data.Dataset):
@@ -171,6 +170,7 @@ class SegmentationDataset(torch.utils.data.Dataset):
         initial_label_dtype = labels.dtype
 
         if self.raw_transform is not None:
+            raw = ensure_tensor(raw)
             raw = self.raw_transform(raw)
 
         if self.label_transform is not None:
