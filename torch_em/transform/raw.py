@@ -95,17 +95,20 @@ class RandomGamma:
     Adjust contrast by non-liner transformation raising image value to power gamma.
     """
 
-    def __init__(self, gamma=(0.5, 2), gain=1.0, clip_kwargs={"a_min": 0, "a_max": 1}):
-        self.gamma = gamma
+    def __init__(self, alpha=(0.5, 2), gain=1.0, clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.alpha = alpha
         self.gain = gain
         self.clip_kwargs = clip_kwargs
 
-    def __call__(self, img):
-        gamma = np.random.uniform(self.gamma[0], self.gamma[1])
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            gamma = np.random.uniform(self.alpha[0], self.alpha[1])
+        else:
+            gamma = alpha
         if gamma < 0.0:
             raise ValueError(f"Gamma must be non-negative. Got {gamma}")
         if self.gain < 0.0:
-            raise ValueError(f"Gain must be non-negative. Got {gain}")
+            raise ValueError(f"Gain must be non-negative. Got {self.gain}")
         result = self.gain * (img**gamma)
         if self.clip_kwargs:
             return np.clip(result, **self.clip_kwargs)
@@ -117,12 +120,15 @@ class RandomBrightness:
     Adjust brightness by adding a random value to image.
     """
 
-    def __init__(self, shift=(0, 1.0), clip_kwargs={"a_min": 0, "a_max": 1}):
-        self.shift = shift
+    def __init__(self, alpha=(0, 1.0), clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.alpha = alpha
         self.clip_kwargs = clip_kwargs
 
-    def __call__(self, img):
-        shift = np.random.uniform(self.shift[0], self.shift[1])
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            shift = np.random.uniform(self.alpha[0], self.alpha[1])
+        else:
+            shift = alpha
         result = img + shift
         if self.clip_kwargs:
             return np.clip(result, **self.clip_kwargs)
@@ -135,14 +141,16 @@ class RandomContrast:
     Adjust contrast by scaling image to `mean + alpha * (image - mean)`.
     """
 
-    def __init__(self, alpha=(0.5, 2), mean=0.5, clip_kwargs={"a_min": 0, "a_max": 1}):
+    def __init__(self, alpha=(0.5, 2), clip_kwargs={"a_min": 0, "a_max": 1}):
         self.alpha = alpha
-        self.mean = mean
         self.clip_kwargs = clip_kwargs
 
-    def __call__(self, img):
-        alpha = np.random.uniform(self.alpha[0], self.alpha[1])
-        result = self.mean + alpha * (img - self.mean)
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            alpha = np.random.uniform(self.alpha[0], self.alpha[1])
+        # mean = torch.mean(img)
+        mean = np.mean(img)
+        result = mean + alpha * (img - mean)
         if self.clip_kwargs:
             return np.clip(result, **self.clip_kwargs)
         return result
@@ -153,15 +161,18 @@ class AdditiveGaussianNoise:
     Add random Gaussian noise to image.
     """
 
-    def __init__(self, scale=(0.0, 0.3), clip_kwargs={"a_min": 0, "a_max": 1}):
-        self.scale = scale
+    def __init__(self, alpha=(0.0, 0.3), clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.alpha = alpha
         self.clip_kwargs = clip_kwargs
 
-    def __call__(self, img):
-        std = np.random.uniform(self.scale[0], self.scale[1])
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            std = np.random.uniform(self.alpha[0], self.alpha[1])
+        else:
+            std = alpha
         gaussian_noise = np.random.normal(0, std, size=img.shape)
         if self.clip_kwargs:
-            return np.clip(img + gaussian_noise, 0, 1)
+            return np.clip(img + gaussian_noise, dtype=img.dtype, **self.clip_kwargs)
         return img + gaussian_noise
 
 
@@ -195,11 +206,13 @@ class PoissonNoise:
 
     def __call__(self, img):
         multiplier = np.random.uniform(self.multiplier[0], self.multiplier[1])
-        offset = img.min()
-        poisson_noise = np.random.poisson((img - offset) * multiplier)
+        # offset = img.min()
+        # poisson_noise = np.random.poisson((img - offset) * multiplier)
+        poisson_noise = np.random.poisson(img / multiplier)
         if isinstance(img, torch.Tensor):
             poisson_noise = torch.Tensor(poisson_noise)
-        poisson_noise = poisson_noise / multiplier + offset
+        # poisson_noise = poisson_noise / multiplier + offset
+        poisson_noise = poisson_noise * multiplier
         if self.clip_kwargs:
             return np.clip(poisson_noise, **self.clip_kwargs)
         return poisson_noise
@@ -302,3 +315,20 @@ def get_raw_augmentations(transform_inputs):
     # compose aug using transforms.Compose from list of strings inputed as raw_tranforms
     aug = transforms.Compose(group_of_transforms)
     return aug
+
+
+def get_single_TTA_raw_augmentations(transform_input):
+    transform_available = {
+        "GaussianBlur": GaussianBlur,
+        "RandomContrast": RandomContrast,
+        "AdditiveGaussianNoise": AdditiveGaussianNoise,
+        "AdditivePoissonNoise": AdditivePoissonNoise,
+        "PoissonNoise": PoissonNoise,
+        "RandomGamma": RandomGamma,
+        "RandomBrightness": RandomBrightness,
+    }
+    assert (
+        transform_input[0] in transform_available.keys()
+    ), f"{transform_input[0]} not available"
+    transform = transform_available[transform_input[0]](**transform_input[1])
+    return transform
