@@ -182,12 +182,13 @@ class BCEDiceLoss(nn.Module):
         eps: The epsilon value added to the denominator for numerical stability.
         reduce_channel: How to return the dice score over the channel axis.
     """
-    def __init__(self, alpha: float = 1.0, beta: float = 1.0, channelwise: bool = True, eps: float = 1e-7):
+    def __init__(self, alpha: float = 1.0, beta: float = 1.0, channelwise: bool = True, eps: float = 1e-7, threshold: Optional[float] = None):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
         self.channelwise = channelwise
         self.eps = eps
+        self.threshold = threshold
 
         # All torch_em classes should store init kwargs to easily recreate the init call.
         self.init_kwargs = {"alpha": alpha, "beta": beta, "channelwise": channelwise, "eps": self.eps}
@@ -202,6 +203,9 @@ class BCEDiceLoss(nn.Module):
         Returns:
             The combined BCE and dice loss.
         """
+
+        input_ = ensure_binary(input_, threshold=self.threshold)
+    
         loss_dice = dice_score(
             input_=input_,
             target=target,
@@ -211,6 +215,16 @@ class BCEDiceLoss(nn.Module):
         )
         loss_bce = nn.functional.binary_cross_entropy(input_, target)
         return self.alpha * loss_dice + self.beta * loss_bce
+
+
+def ensure_binary(input: torch.Tensor, threshold: Optional[float]=None)-> torch.Tensor:
+    unique_vals = torch.unique(input)
+    if not torch.all((unique_vals == 0) | (unique_vals == 1)):
+        assert threshold is not None, "Input must be binary or threshold must be set."
+        if not (0 <= threshold <= 1):
+            raise ValueError(f"Threshold must be in [0, 1], got {threshold}.")
+        input = (input > threshold).float()
+    return input
 
 
 # TODO think about how to handle combined losses like this for mixed precision training
