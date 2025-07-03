@@ -15,7 +15,7 @@ from .data import ConcatDataset, ImageCollectionDataset, SegmentationDataset
 
 
 # TODO add a heuristic to estimate this from the number of epochs
-DEFAULT_SCHEDULER_KWARGS = {"mode": "min", "factor": 0.5, "patience": 5}
+DEFAULT_SCHEDULER_KWARGS: Dict[str, Any] = {"mode": "min", "factor": 0.5, "patience": 5}
 """@private
 """
 
