@@ -335,6 +335,15 @@ class RawTransform:
         return raw
 
 
+class ToTensorDtype:
+    def __init__(self, dtype=torch.float32):
+        self.dtype = dtype
+
+    def __call__(self, x):
+        return torch.as_tensor(x, dtype=self.dtype)
+    
+    
+
 def get_raw_transform(
     normalizer: Callable = standardize,
     augmentation1: Optional[Callable] = None,
