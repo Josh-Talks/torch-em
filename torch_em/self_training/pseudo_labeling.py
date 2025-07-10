@@ -310,3 +310,18 @@ class ScheduledPseudoLabeler:
             if self.num_bad_epochs > self.patience:
                 self._reduce_ct(epoch)
                 self.num_bad_epochs = 0
+
+
+def count_all_one_patches(label_filter: torch.Tensor) -> int:
+    # Flatten the last 3 dimensions for each sample
+    # For 5D: (N, C, D, H, W) -> (N, C, D*H*W)
+    # For 4D: (N, C, H, W) -> (N, C, H*W)
+    flat = label_filter.reshape(label_filter.shape[0], label_filter.shape[1], -1)
+    # Check if all values in the last dimension are one for each (N, C)
+    all_one = flat.all(dim=-1)
+    # Now, for each N, check if all channels are one (if needed)
+    # If you want to count per N, use .all(dim=1)
+    all_one_per_sample = all_one.all(dim=1)
+    # Count how many samples have all ones
+    count = all_one_per_sample.sum().item()
+    return count
