@@ -5,6 +5,12 @@ from typing import Callable, Optional
 import torch
 import torch_em
 from torch_em.util import get_constructor_arguments
+from torch_em.self_training.pseudo_labeling import (
+    count_all_one_patches,
+    DefaultPseudoLabeler,
+    ScheduledPseudoLabeler,
+    ProbabilisticPseudoLabeler,
+)
 
 from .logger import SelfTrainingTensorboardLogger
 
@@ -251,8 +257,19 @@ class MeanTeacherTrainer(torch_em.trainer.DefaultTrainer):
                 )
                 lr = [pm["lr"] for pm in self.optimizer.param_groups][0]
                 self.logger.log_lr(self._iteration, lr)
-                if self.pseudo_labeler.confidence_threshold is not None:
-                    self.logger.log_ct(self._iteration, self.pseudo_labeler.confidence_threshold)
+                if (
+                    (isinstance(self.pseudo_labeler, DefaultPseudoLabeler))
+                    or (isinstance(self.pseudo_labeler, ScheduledPseudoLabeler))
+                    or (isinstance(self.pseudo_labeler, ProbabilisticPseudoLabeler))
+                ):
+                    if self.pseudo_labeler.confidence_threshold is not None:
+                        self.logger.log_ct(
+                            self._iteration, self.pseudo_labeler.confidence_threshold
+                        )
+                if label_filter is not None:
+                    self.logger.log_accepted_patches(
+                        self._iteration, count_all_one_patches(label_filter)
+                    )
 
             with torch.no_grad():
                 self._momentum_update()
@@ -310,6 +327,10 @@ class MeanTeacherTrainer(torch_em.trainer.DefaultTrainer):
                 self.logger.log_combined_loss(self._iteration, loss)
                 lr = [pm["lr"] for pm in self.optimizer.param_groups][0]
                 self.logger.log_lr(self._iteration, lr)
+                if label_filter is not None:
+                    self.logger.log_accepted_patches(
+                        self._iteration, count_all_one_patches(label_filter)
+                    )
 
             with torch.no_grad():
                 self._momentum_update()
@@ -366,6 +387,10 @@ class MeanTeacherTrainer(torch_em.trainer.DefaultTrainer):
             self.logger.log_validation_unsupervised(
                 self._iteration, metric_val, loss_val, x1, x2, pred, pseudo_labels, label_filter
             )
+            if label_filter is not None:
+                self.logger.log_accepted_patches(
+                    self._iteration, count_all_one_patches(label_filter), name = "validation/accepted_patches"
+                )
 
         self.pseudo_labeler.step(metric_val, self._epoch) # NOTE: scheduler added in validation step
 
