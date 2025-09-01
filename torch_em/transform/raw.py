@@ -297,6 +297,51 @@ class GaussianBlur:
         return transforms.GaussianBlur(kernel_size, sigma=sigma)(img)
 
 
+class RandomGamma:
+    """
+    Adjust contrast by non-liner transformation raising image value to power gamma.
+    """
+
+    def __init__(self, alpha=(0.5, 2), gain=1.0, clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.alpha = alpha
+        self.gain = gain
+        self.clip_kwargs = clip_kwargs
+
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            gamma = np.random.uniform(self.alpha[0], self.alpha[1])
+        else:
+            gamma = alpha
+        if gamma < 0.0:
+            raise ValueError(f"Gamma must be non-negative. Got {gamma}")
+        if self.gain < 0.0:
+            raise ValueError(f"Gain must be non-negative. Got {self.gain}")
+        result = self.gain * (img**gamma)
+        if self.clip_kwargs:
+            return np.clip(result, **self.clip_kwargs)
+        return result
+
+
+class RandomBrightness:
+    """
+    Adjust brightness by adding a random value to image.
+    """
+
+    def __init__(self, alpha=(0, 1.0), clip_kwargs={"a_min": 0, "a_max": 1}):
+        self.alpha = alpha
+        self.clip_kwargs = clip_kwargs
+
+    def __call__(self, img, alpha=None):
+        if alpha is None:
+            shift = np.random.uniform(self.alpha[0], self.alpha[1])
+        else:
+            shift = alpha
+        result = img + shift
+        if self.clip_kwargs:
+            return np.clip(result, **self.clip_kwargs)
+        return result
+
+
 #
 # Default Transformation: Apply intensity augmentations and normalize.
 #
@@ -396,3 +441,25 @@ def get_default_mean_teacher_augmentations(
 
     aug2 = transforms.RandomApply([RandomContrast(clip_kwargs={"a_min": 0, "a_max": 1})], p=p)
     return get_raw_transform(normalizer=norm, augmentation1=aug1, augmentation2=aug2)
+
+
+def get_raw_augmentations(transform_inputs):
+    transform_available = {
+        "GaussianBlur": GaussianBlur,
+        "RandomContrast": RandomContrast,
+        "AdditiveGaussianNoise": AdditiveGaussianNoise,
+        "AdditivePoissonNoise": AdditivePoissonNoise,
+        "PoissonNoise": PoissonNoise,
+        "RandomGamma": RandomGamma,
+        "RandomBrightness": RandomBrightness,
+    }
+    group_of_transforms = [normalize]
+    for t, p, param in transform_inputs:
+        assert t in transform_available.keys(), f"{t} not available"
+        group_of_transforms.append(
+            transforms.RandomApply([transform_available[t](**param)], p=p["p"])
+        )
+
+    # compose aug using transforms.Compose from list of strings inputed as raw_tranforms
+    aug = transforms.Compose(group_of_transforms)
+    return aug
