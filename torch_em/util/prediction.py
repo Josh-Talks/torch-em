@@ -137,6 +137,7 @@ def predict_with_halo(
     prediction_function: Optional[Callable] = None,
     roi: Optional[Tuple[slice]] = None,
     iter_list: Optional[List[int]] = None,
+    blockwise_prediction: bool = False,
 ) -> ArrayLike:
     """Run block-wise network prediction with a halo.
 
@@ -183,7 +184,7 @@ def predict_with_halo(
         blocking_stop = [sh if ro.stop is None else ro.stop for ro, sh in zip(roi, shape)]
         blocking = nt.blocking(blocking_start, blocking_stop, block_shape)
 
-    if output is None:
+    if (output is None) and (not blockwise_prediction):
         n_out = models[0][0].out_channels
         output = np.zeros((n_out,) + shape, dtype="float32")
 
@@ -236,6 +237,9 @@ def predict_with_halo(
                 prediction[~mask_block] = 0
 
             bb = tuple(slice(beg, end) for beg, end in zip(block.begin, block.end))
+            if blockwise_prediction:
+                blockwise_predictions.append(prediction.copy())
+                return  # Don't write to output array if collecting blocks
             if isinstance(output, list):  # we have multiple outputs and split the prediction channels
                 for out, channel_slice in output:
                     this_bb = bb if out.ndim == ndim else (slice(None),) + bb
@@ -251,7 +255,12 @@ def predict_with_halo(
         iteration_ids = range(n_blocks)
     else:
         iteration_ids = np.array(iter_list)
+    
+    blockwise_predictions = [] if blockwise_prediction else None
+
     with futures.ThreadPoolExecutor(n_workers) as tp:
         list(tqdm(tp.map(predict_block, iteration_ids), total=n_blocks, disable=disable_tqdm, desc=tqdm_desc))
 
+    if blockwise_prediction:
+        return np.stack(blockwise_predictions, axis=0)
     return output
