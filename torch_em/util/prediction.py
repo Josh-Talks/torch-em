@@ -259,7 +259,7 @@ def predict_with_halo(
     blockwise_predictions = [] if blockwise_prediction else None
 
     with futures.ThreadPoolExecutor(n_workers) as tp:
-        list(tqdm(tp.map(predict_block, iteration_ids), total=n_blocks, disable=disable_tqdm, desc=tqdm_desc))
+        list(tqdm(tp.map(predict_block, iteration_ids), total=len(iteration_ids), disable=disable_tqdm, desc=tqdm_desc))
 
     if blockwise_prediction:
         return np.stack(blockwise_predictions, axis=0)
