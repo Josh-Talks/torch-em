@@ -74,7 +74,7 @@ def auto_compile(
     return model
 
 
-def ensure_tensor(tensor: Union[torch.Tensor, ArrayLike], dtype: Optional[str] = None) -> torch.Tensor:
+def ensure_tensor(tensor: Union[torch.Tensor, ArrayLike], dtype: Optional[torch.dtype] = None) -> torch.Tensor:
     """Ensure that the input is a torch tensor, by converting it if necessary.
 
     Args:
@@ -103,7 +103,7 @@ def ensure_tensor(tensor: Union[torch.Tensor, ArrayLike], dtype: Optional[str] =
 
 
 def ensure_tensor_with_channels(
-    tensor: Union[torch.Tensor, ArrayLike], ndim: int, dtype: Optional[str] = None
+    tensor: Union[torch.Tensor, ArrayLike], ndim: int, dtype: Optional[torch.dtype] = None
 ) -> torch.Tensor:
     """Ensure that the input is a torch tensor of a given dimensionality with channels.
 
