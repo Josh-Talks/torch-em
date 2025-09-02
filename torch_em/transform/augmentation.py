@@ -276,7 +276,21 @@ def create_augmentation(trafo):
     return globals()[trafo](**AUGMENTATIONS[trafo])
 
 
-def get_augmentations(ndim: Union[int, str] = 2, transforms=None, dtype: Union[str, torch.dtype] = torch.float32):
+def create_augmentation_with_params(trafo):
+    assert (
+        trafo[0] in dir(kornia.augmentation) or trafo[0] in globals().keys()
+    ), f"Transformation {trafo} not defined"
+    if trafo[0] in dir(kornia.augmentation):
+        return getattr(kornia.augmentation, trafo[0])(**trafo[1])
+    return globals()[trafo[0]](**trafo[1])
+
+
+def get_augmentations(
+    ndim: Union[int, str] = 2, 
+    transforms=None, 
+    dtype: Union[str, torch.dtype] = torch.float32, 
+    default_augs:bool=True
+):
     """Get augmentation pipeline.
 
     Args:
@@ -296,7 +310,10 @@ def get_augmentations(ndim: Union[int, str] = 2, transforms=None, dtype: Union[s
             transforms = DEFAULT_3D_AUGMENTATIONS
         else:
             transforms = DEFAULT_ANISOTROPIC_AUGMENTATIONS
-    transforms = [create_augmentation(trafo) for trafo in transforms]
+    if default_augs:
+        transforms = [create_augmentation(trafo) for trafo in transforms]
+    else:
+        transforms = [create_augmentation_with_params(trafo) for trafo in transforms]
     assert all(isinstance(trafo, kornia.augmentation.base._AugmentationBase) for trafo in transforms)
     augmentations = KorniaAugmentationPipeline(*transforms, dtype=dtype)
     return augmentations
