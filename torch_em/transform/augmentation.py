@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import kornia
 import numpy as np
@@ -276,13 +276,13 @@ def create_augmentation(trafo):
     return globals()[trafo](**AUGMENTATIONS[trafo])
 
 
-def create_augmentation_with_params(trafo):
+def create_augmentation_with_params(trafo: Dict[str, Any]):
     assert (
-        trafo[0] in dir(kornia.augmentation) or trafo[0] in globals().keys()
+        trafo['name'] in dir(kornia.augmentation) or trafo['name'] in globals().keys()
     ), f"Transformation {trafo} not defined"
-    if trafo[0] in dir(kornia.augmentation):
-        return getattr(kornia.augmentation, trafo[0])(**trafo[1])
-    return globals()[trafo[0]](**trafo[1])
+    if trafo['name'] in dir(kornia.augmentation):
+        return getattr(kornia.augmentation, trafo['name'])(**trafo['params'])
+    return globals()[trafo['name']](**trafo['params'])
 
 
 def get_augmentations(
