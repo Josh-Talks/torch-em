@@ -1,4 +1,4 @@
-from typing import Union, Optional, Tuple, Dict, Callable
+from typing import Any, Union, Optional, Tuple, Dict, Callable, Sequence
 
 import numpy as np
 
@@ -443,7 +443,7 @@ def get_default_mean_teacher_augmentations(
     return get_raw_transform(normalizer=norm, augmentation1=aug1, augmentation2=aug2)
 
 
-def get_raw_augmentations(transform_inputs):
+def get_raw_augmentations(transform_inputs: Sequence[Dict[str, Any]]):
     transform_available = {
         "GaussianBlur": GaussianBlur,
         "RandomContrast": RandomContrast,
@@ -454,12 +454,38 @@ def get_raw_augmentations(transform_inputs):
         "RandomBrightness": RandomBrightness,
     }
     group_of_transforms = [normalize]
-    for t, p, param in transform_inputs:
-        assert t in transform_available.keys(), f"{t} not available"
+    for transform in transform_inputs:
+        assert transform["name"] in transform_available.keys(), f"{transform['name']} not available"
         group_of_transforms.append(
-            transforms.RandomApply([transform_available[t](**param)], p=p["p"])
+            transforms.RandomApply([transform_available[transform["name"]](**transform["params"])], p=transform["p"])
         )
 
     # compose aug using transforms.Compose from list of strings inputed as raw_tranforms
     aug = transforms.Compose(group_of_transforms)
     return aug
+
+raw_transform_type = Union[GaussianBlur, RandomContrast, AdditiveGaussianNoise, AdditivePoissonNoise, PoissonNoise, RandomGamma, RandomBrightness]
+
+def get_single_TTA_raw_augmentation(transform_input: Dict[str, Any]) -> raw_transform_type:
+    transform_available = {
+        "GaussianBlur": GaussianBlur,
+        "RandomContrast": RandomContrast,
+        "AdditiveGaussianNoise": AdditiveGaussianNoise,
+        "AdditivePoissonNoise": AdditivePoissonNoise,
+        "PoissonNoise": PoissonNoise,
+        "RandomGamma": RandomGamma,
+        "RandomBrightness": RandomBrightness,
+    }
+    group_of_transforms = [normalize]
+    assert (
+        transform_input["name"] in transform_available.keys()
+    ), f"{transform_input['name']} not available"
+    group_of_transforms.append(
+        transforms.RandomApply(
+            [transform_available[transform_input["name"]](**transform_input["params"])],
+            p=transform_input["p"],
+        )
+    )
+    aug = transforms.Compose(group_of_transforms)
+    return aug
+
